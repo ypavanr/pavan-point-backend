@@ -1,0 +1,17 @@
+# Environment / secrets
+.env
+
+# Virtual environment
+venv/
+
+# Runtime data (created at first run)
+storage/
+thumbnails/
+drive.db
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
