@@ -250,3 +250,152 @@ def test_download_zip_includes_note_as_txt_and_drops_private_for_viewer(client, 
     names = zf.namelist()
     assert any("Zip Public Note" in n for n in names)
     assert not any("Zip Private Note" in n for n in names)
+
+
+# --- Extended editor feature set: task lists, text color, links ---
+# (added alongside the production-grade editor rebuild: paragraph style
+# dropdown, text color, checklists, and links joined the original
+# bold/italic/underline/strike/highlight/align/heading/list set.)
+
+def test_task_list_content_accepted_and_checked_state_in_plaintext(client, master_token):
+    doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "taskList",
+                "content": [
+                    {
+                        "type": "taskItem",
+                        "attrs": {"checked": True},
+                        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "done thing"}]}],
+                    },
+                    {
+                        "type": "taskItem",
+                        "attrs": {"checked": False},
+                        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "todo thing"}]}],
+                    },
+                ],
+            }
+        ],
+    }
+    note = _create_note(client, master_token, "Task list note", None, doc)
+    assert "done thing" in note["content_plaintext"]
+    assert "todo thing" in note["content_plaintext"]
+
+
+def test_task_item_non_boolean_checked_rejected(client, master_token):
+    doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "taskList",
+                "content": [
+                    {
+                        "type": "taskItem",
+                        "attrs": {"checked": "yes"},
+                        "content": [{"type": "paragraph", "content": [{"type": "text", "text": "bad"}]}],
+                    }
+                ],
+            }
+        ],
+    }
+    res = client.post(
+        "/api/notes",
+        headers=auth_headers(master_token),
+        json={"title": "Bad task item", "folder_id": None, "content_json": doc},
+    )
+    assert res.status_code == 422
+
+
+def test_text_color_hex_accepted_and_named_color_rejected(client, master_token):
+    good_doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "colored", "marks": [{"type": "textStyle", "attrs": {"color": "#9333ea"}}]}],
+            }
+        ],
+    }
+    ok = client.post(
+        "/api/notes",
+        headers=auth_headers(master_token),
+        json={"title": "Colored note", "folder_id": None, "content_json": good_doc},
+    )
+    assert ok.status_code == 200
+
+    bad_doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [{"type": "text", "text": "colored", "marks": [{"type": "textStyle", "attrs": {"color": "purple"}}]}],
+            }
+        ],
+    }
+    bad = client.post(
+        "/api/notes",
+        headers=auth_headers(master_token),
+        json={"title": "Bad colored note", "folder_id": None, "content_json": bad_doc},
+    )
+    assert bad.status_code == 422
+
+
+def test_link_with_https_href_accepted(client, master_token):
+    doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "site", "marks": [{"type": "link", "attrs": {"href": "https://example.com"}}]},
+                ],
+            }
+        ],
+    }
+    res = client.post(
+        "/api/notes",
+        headers=auth_headers(master_token),
+        json={"title": "Link note", "folder_id": None, "content_json": doc},
+    )
+    assert res.status_code == 200
+
+
+def test_link_with_javascript_href_rejected(client, master_token):
+    doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "click me", "marks": [{"type": "link", "attrs": {"href": "javascript:alert(1)"}}]},
+                ],
+            }
+        ],
+    }
+    res = client.post(
+        "/api/notes",
+        headers=auth_headers(master_token),
+        json={"title": "Malicious link note", "folder_id": None, "content_json": doc},
+    )
+    assert res.status_code == 422
+
+
+def test_link_with_data_uri_href_rejected(client, master_token):
+    doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "text", "text": "click me", "marks": [{"type": "link", "attrs": {"href": "data:text/html,<script>alert(1)</script>"}}]},
+                ],
+            }
+        ],
+    }
+    res = client.post(
+        "/api/notes",
+        headers=auth_headers(master_token),
+        json={"title": "Malicious data uri note", "folder_id": None, "content_json": doc},
+    )
+    assert res.status_code == 422

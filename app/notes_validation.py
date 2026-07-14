@@ -9,15 +9,18 @@ node types outside what the editor's toolbar (section 2 of the Notes spec)
 actually exposes.
 """
 import re
+from urllib.parse import urlparse
 
-# Keep in sync with the Tiptap extensions enabled in NoteEditorModal.jsx.
+# Keep in sync with the Tiptap extensions enabled in lib/noteEditorExtensions.js.
 ALLOWED_NODE_TYPES = {
     "doc", "paragraph", "text", "heading",
     "bulletList", "orderedList", "listItem", "hardBreak",
+    "taskList", "taskItem",
 }
-ALLOWED_MARK_TYPES = {"bold", "italic", "underline", "strike", "highlight"}
+ALLOWED_MARK_TYPES = {"bold", "italic", "underline", "strike", "highlight", "textStyle", "link"}
 ALLOWED_HEADING_LEVELS = {1, 2, 3}
 ALLOWED_TEXT_ALIGN = {"left", "center", "right", "justify"}
+ALLOWED_LINK_PROTOCOLS = {"http", "https", "mailto"}
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$")
 
 MAX_CONTENT_JSON_BYTES = 3 * 1024 * 1024  # a few MB ceiling per the spec
@@ -33,11 +36,24 @@ def _validate_mark(mark):
     mark_type = mark.get("type")
     if mark_type not in ALLOWED_MARK_TYPES:
         raise NoteContentValidationError(f"Disallowed mark type: {mark_type!r}")
+    attrs = mark.get("attrs") or {}
     if mark_type == "highlight":
-        attrs = mark.get("attrs") or {}
         color = attrs.get("color")
         if color is not None and not HEX_COLOR_RE.match(color):
             raise NoteContentValidationError("Highlight color must be a hex color")
+    if mark_type == "textStyle":
+        color = attrs.get("color")
+        if color is not None and not HEX_COLOR_RE.match(color):
+            raise NoteContentValidationError("Text color must be a hex color")
+    if mark_type == "link":
+        href = attrs.get("href")
+        if not isinstance(href, str) or not href:
+            raise NoteContentValidationError("Link mark missing href")
+        # No javascript:/data:/vbscript: hrefs - only well-formed http(s)/mailto
+        # links, mirroring the client-side allow-list in noteEditorExtensions.js.
+        parsed = urlparse(href)
+        if parsed.scheme.lower() not in ALLOWED_LINK_PROTOCOLS:
+            raise NoteContentValidationError(f"Disallowed link protocol: {parsed.scheme!r}")
 
 
 def _validate_node(node):
@@ -59,6 +75,11 @@ def _validate_node(node):
         align = attrs.get("textAlign")
         if align is not None and align not in ALLOWED_TEXT_ALIGN:
             raise NoteContentValidationError(f"Disallowed textAlign: {align!r}")
+
+    if node_type == "taskItem":
+        checked = attrs.get("checked")
+        if checked is not None and not isinstance(checked, bool):
+            raise NoteContentValidationError("taskItem 'checked' must be a boolean")
 
     if node_type == "text":
         if not isinstance(node.get("text"), str):
@@ -89,7 +110,7 @@ def _walk_plaintext(node, out: list) -> None:
         return
     for child in node.get("content") or []:
         _walk_plaintext(child, out)
-    if node_type in ("paragraph", "heading", "listItem"):
+    if node_type in ("paragraph", "heading", "listItem", "taskItem"):
         out.append("\n")
 
 
