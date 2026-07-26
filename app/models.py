@@ -24,6 +24,7 @@ class ViewerLoginLog(Base):
     __tablename__ = "viewer_login_logs"
     id = Column(String, primary_key=True, default=generate_uuid)
     username = Column(String, nullable=False)
+    ip_address = Column(String, nullable=True)
     logged_in_at = Column(DateTime, default=get_utcnow)
 
 class Folder(Base):

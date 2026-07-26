@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app import database, models, schemas, auth
 from app.config import settings
 from app.rate_limit import limiter
+from app.utils import get_client_ip
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -23,7 +24,7 @@ def login(request: Request, payload: schemas.LoginRequest, db: Session = Depends
         display_name = (payload.display_name or "").strip()[:MAX_DISPLAY_NAME_LENGTH]
         if not display_name:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Please enter your name")
-        db.add(models.ViewerLoginLog(username=display_name, logged_in_at=models.get_utcnow()))
+        db.add(models.ViewerLoginLog(username=display_name, ip_address=get_client_ip(request), logged_in_at=models.get_utcnow()))
         db.commit()
     else:
         display_name = user.username

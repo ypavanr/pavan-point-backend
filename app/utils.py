@@ -1,6 +1,27 @@
 import os
+from fastapi import Request
 from sqlalchemy.orm import Session
 from app import models
+
+def get_client_ip(request: Request) -> str | None:
+    """Best-effort client IP for audit logging (not for access control).
+
+    The deployment sits behind an nginx reverse proxy (see deploy/), which
+    sets X-Real-IP; X-Forwarded-For is a fallback for other proxies, and
+    request.client.host covers direct/local access with no proxy at all.
+    These headers are client-suppliable and unverified here, so treat this
+    as informational only - never gate authorization or rate limiting on it
+    without a trusted-proxy allowlist.
+    """
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+
+    return request.client.host if request.client else None
 
 def get_folder_path(db: Session, folder_id: str) -> list[models.Folder]:
     """Returns the path from root to the specified folder."""

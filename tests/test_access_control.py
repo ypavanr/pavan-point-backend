@@ -203,8 +203,8 @@ def test_viewer_login_accepts_any_display_name(client):
         assert me.json() == {"username": name, "role": "viewer"}
 
 
-# Every successful viewer login is recorded (name + timestamp) and that log is
-# visible to master but off-limits to viewers themselves.
+# Every successful viewer login is recorded (name, IP, and timestamp) and
+# that log is visible to master but off-limits to viewers themselves.
 def test_viewer_login_is_logged_and_only_master_can_read_it(client, master_token):
     from tests.conftest import VIEWER_PASSWORD
     viewer_token = _login(client, VIEWER_PASSWORD, "viewer", display_name="Audit Test Viewer")
@@ -215,7 +215,44 @@ def test_viewer_login_is_logged_and_only_master_can_read_it(client, master_token
     res = client.get("/api/auth/viewer-logs", headers=auth_headers(master_token))
     assert res.status_code == 200
     entries = res.json()
-    assert any(e["username"] == "Audit Test Viewer" for e in entries)
+    entry = next(e for e in entries if e["username"] == "Audit Test Viewer")
+    assert "ip_address" in entry  # None here is fine - TestClient has no real socket peer
+
+
+# The app sits behind an nginx reverse proxy in production (see
+# app/utils.py::get_client_ip), which sets X-Real-IP to the real browser IP -
+# that must be what gets logged, not the proxy's own address.
+def test_viewer_login_logs_x_real_ip_when_present(client):
+    from tests.conftest import VIEWER_PASSWORD, MASTER_PASSWORD
+
+    res = client.post(
+        "/api/auth/login",
+        json={"password": VIEWER_PASSWORD, "role": "viewer", "display_name": "Proxied Viewer"},
+        headers={"X-Real-IP": "203.0.113.42", "X-Forwarded-For": "203.0.113.42, 192.168.1.1"},
+    )
+    assert res.status_code == 200
+
+    master_token = _login(client, MASTER_PASSWORD, "master")
+    logs = client.get("/api/auth/viewer-logs", headers=auth_headers(master_token))
+    entry = next(e for e in logs.json() if e["username"] == "Proxied Viewer")
+    assert entry["ip_address"] == "203.0.113.42"
+
+
+# With no X-Real-IP, the first hop in X-Forwarded-For is used as a fallback.
+def test_viewer_login_falls_back_to_x_forwarded_for(client):
+    from tests.conftest import VIEWER_PASSWORD, MASTER_PASSWORD
+
+    res = client.post(
+        "/api/auth/login",
+        json={"password": VIEWER_PASSWORD, "role": "viewer", "display_name": "Forwarded-For Viewer"},
+        headers={"X-Forwarded-For": "198.51.100.9, 192.168.1.1"},
+    )
+    assert res.status_code == 200
+
+    master_token = _login(client, MASTER_PASSWORD, "master")
+    logs = client.get("/api/auth/viewer-logs", headers=auth_headers(master_token))
+    entry = next(e for e in logs.json() if e["username"] == "Forwarded-For Viewer")
+    assert entry["ip_address"] == "198.51.100.9"
 
 
 # 8. A JWT whose payload was edited to say role "master", re-signed with a

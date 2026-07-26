@@ -104,3 +104,16 @@ def run_migrations_and_seed_users():
 @app.get("/api/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}
+
+# TEMPORARY - for verifying the ThinkPad nginx -> Pi reverse proxy forwards
+# headers correctly (Browser -> nginx -> this FastAPI app). Remove once the
+# proxy setup is confirmed; it has no auth and reflects request headers back.
+@app.get("/", tags=["Debug"])
+async def proxy_header_check(request: Request):
+    return {
+        "host": request.headers.get("host"),
+        "real_ip": request.headers.get("x-real-ip"),
+        "forwarded_for": request.headers.get("x-forwarded-for"),
+        "proto": request.headers.get("x-forwarded-proto"),
+        "client_ip_seen_by_fastapi": request.client.host if request.client else None,
+    }

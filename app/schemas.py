@@ -19,6 +19,7 @@ class MeResponse(BaseModel):
 
 class ViewerLoginLogEntry(BaseModel):
     username: str
+    ip_address: Optional[str] = None
     logged_in_at: datetime
 
     class Config:
