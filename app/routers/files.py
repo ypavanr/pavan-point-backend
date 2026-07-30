@@ -86,7 +86,7 @@ def upload_file(
     if file_type != "other":
         background_tasks.add_task(thumbnails.generate_thumbnail, file_type, stored_filename, thumbnail_filename)
 
-    return {**new_file.__dict__, "has_thumbnail": bool(new_file.thumbnail_path) and (settings.thumbnails_dir / new_file.thumbnail_path).exists()}
+    return {**new_file.__dict__, "has_thumbnail": bool(new_file.thumbnail_path)}
 
 def _get_visible_file_or_404(file_id: str, current_user: models.User, db: Session) -> models.File:
     """Fetch a file and, for viewers, confirm its parent folder isn't private-or-descendant.
@@ -193,7 +193,7 @@ def rename_file(file_id: str, file_update: schemas.FileUpdate, db: Session = Dep
     file.original_filename = unique_name
     db.commit()
     db.refresh(file)
-    return {**file.__dict__, "has_thumbnail": bool(file.thumbnail_path) and (settings.thumbnails_dir / file.thumbnail_path).exists()}
+    return {**file.__dict__, "has_thumbnail": bool(file.thumbnail_path)}
 
 @router.post("/{file_id}/move", response_model=schemas.FileResponse)
 def move_file(file_id: str, payload: schemas.MoveRequest, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_write_access)):
@@ -213,7 +213,7 @@ def move_file(file_id: str, payload: schemas.MoveRequest, db: Session = Depends(
     file.original_filename = unique_name
     db.commit()
     db.refresh(file)
-    return {**file.__dict__, "has_thumbnail": bool(file.thumbnail_path) and (settings.thumbnails_dir / file.thumbnail_path).exists()}
+    return {**file.__dict__, "has_thumbnail": bool(file.thumbnail_path)}
 
 @router.get("/storage-usage", response_model=schemas.StorageUsageResponse)
 def get_storage_usage(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):

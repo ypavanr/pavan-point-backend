@@ -47,7 +47,7 @@ def search_items(q: str, db: Session = Depends(database.get_db), current_user: m
     file_results = [
         schemas.SearchFileResult(
             **{c.name: getattr(f, c.name) for c in models.File.__table__.columns if c.name != "thumbnail_path"},
-            has_thumbnail=bool(f.thumbnail_path) and (settings.thumbnails_dir / f.thumbnail_path).exists(),
+            has_thumbnail=bool(f.thumbnail_path),
             path=_breadcrumb_path(db, f.folder_id, partition),
         )
         for f in matched_files
@@ -131,7 +131,7 @@ def get_folder_contents(folder_id: str, db: Session = Depends(database.get_db), 
             folder=root_folder,
             breadcrumbs=[],
             subfolders=subfolder_dicts,
-            files=[{**f.__dict__, "has_thumbnail": bool(f.thumbnail_path) and (settings.thumbnails_dir / f.thumbnail_path).exists()} for f in files],
+            files=[{**f.__dict__, "has_thumbnail": bool(f.thumbnail_path)} for f in files],
             notes=notes,
         )
 
@@ -158,7 +158,7 @@ def get_folder_contents(folder_id: str, db: Session = Depends(database.get_db), 
         folder={**folder.__dict__, **get_folder_stats(db, folder.id, partition)},
         breadcrumbs=breadcrumb_dicts,
         subfolders=subfolder_dicts,
-        files=[{**f.__dict__, "has_thumbnail": bool(f.thumbnail_path) and (settings.thumbnails_dir / f.thumbnail_path).exists()} for f in files],
+        files=[{**f.__dict__, "has_thumbnail": bool(f.thumbnail_path)} for f in files],
         notes=notes,
     )
 
