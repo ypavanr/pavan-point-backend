@@ -11,7 +11,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1 hour - session must be re-authenticated after this
-VALID_ROLES = ("master", "viewer")
+VALID_ROLES = ("master", "viewer", "peepee")
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -72,10 +72,21 @@ def require_master(current_user: models.User = Depends(get_current_user)) -> mod
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Master access required")
     return current_user
 
+def require_write_access(current_user: models.User = Depends(get_current_user)) -> models.User:
+    if current_user.role not in ("master", "peepee"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
+    return current_user
+
+def get_current_partition(current_user: models.User) -> str:
+    """Determine which partition the user is accessing."""
+    if current_user.role in ("master", "viewer"):
+        return "master"
+    return current_user.role
+
 def check_folder_visible(folder_id: str | None, current_user: models.User, db: Session):
     """Raise 404 (never 403) for a viewer trying to reach a private-or-descendant
     folder, so a private folder ID can't be distinguished from a nonexistent one."""
-    if current_user.role == "master":
+    if current_user.role in ("master", "peepee"):
         return
     if not folder_id or folder_id == "root":
         return

@@ -84,12 +84,13 @@ def run_migrations_and_seed_users():
         # dedicated master/viewer rows below - remove anything that isn't one
         # of the two canonical accounts so role lookups can't pick the wrong
         # row / wrong password hash.
-        canonical_usernames = {settings.master_username, settings.viewer_username}
+        canonical_usernames = {settings.master_username, settings.viewer_username, settings.peepee_username}
         db.query(models.User).filter(~models.User.username.in_(canonical_usernames)).delete(synchronize_session=False)
 
         for username, password, role in (
             (settings.master_username, settings.master_password, "master"),
             (settings.viewer_username, settings.viewer_password, "viewer"),
+            (settings.peepee_username, settings.peepee_password, "peepee"),
         ):
             existing = db.query(models.User).filter(models.User.username == username).first()
             if existing:

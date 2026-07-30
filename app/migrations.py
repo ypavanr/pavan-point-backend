@@ -21,3 +21,18 @@ def run_startup_migrations(engine: Engine):
             log_columns = {c["name"] for c in inspector.get_columns("viewer_login_logs")}
             if "ip_address" not in log_columns:
                 conn.execute(text("ALTER TABLE viewer_login_logs ADD COLUMN ip_address VARCHAR"))
+
+        if "folders" in inspector.get_table_names():
+            folder_columns = {c["name"] for c in inspector.get_columns("folders")}
+            if "owner_role" not in folder_columns:
+                conn.execute(text("ALTER TABLE folders ADD COLUMN owner_role VARCHAR NOT NULL DEFAULT 'master'"))
+
+        if "files" in inspector.get_table_names():
+            file_columns = {c["name"] for c in inspector.get_columns("files")}
+            if "owner_role" not in file_columns:
+                conn.execute(text("ALTER TABLE files ADD COLUMN owner_role VARCHAR NOT NULL DEFAULT 'master'"))
+
+        if "notes" in inspector.get_table_names():
+            note_columns = {c["name"] for c in inspector.get_columns("notes")}
+            if "owner_role" not in note_columns:
+                conn.execute(text("ALTER TABLE notes ADD COLUMN owner_role VARCHAR NOT NULL DEFAULT 'master'"))

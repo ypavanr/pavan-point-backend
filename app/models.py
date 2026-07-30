@@ -13,7 +13,7 @@ def get_utcnow():
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("role IN ('master', 'viewer')", name="ck_users_role"),
+        CheckConstraint("role IN ('master', 'viewer', 'peepee')", name="ck_users_role"),
     )
     id = Column(String, primary_key=True, default=generate_uuid)
     username = Column(String, unique=True, index=True)
@@ -32,6 +32,7 @@ class Folder(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     name = Column(String, nullable=False)
     parent_id = Column(String, ForeignKey("folders.id"), nullable=True)
+    owner_role = Column(String, nullable=False, default="master", server_default="master")
     is_private = Column(Boolean, nullable=False, default=False, server_default="0")
     created_at = Column(DateTime, default=get_utcnow)
     updated_at = Column(DateTime, default=get_utcnow, onupdate=get_utcnow)
@@ -49,6 +50,7 @@ class File(Base):
     original_filename = Column(String, nullable=False)
     stored_filename = Column(String, unique=True, nullable=False)
     folder_id = Column(String, ForeignKey("folders.id"), nullable=True)
+    owner_role = Column(String, nullable=False, default="master", server_default="master")
     file_type = Column(String, nullable=False) # 'image' or 'video'
     mime_type = Column(String, nullable=False)
     size_bytes = Column(Integer, nullable=False)
@@ -62,6 +64,7 @@ class Note(Base):
     __tablename__ = "notes"
     id = Column(String, primary_key=True, default=generate_uuid)
     folder_id = Column(String, ForeignKey("folders.id"), nullable=True)
+    owner_role = Column(String, nullable=False, default="master", server_default="master")
     title = Column(String, nullable=False)
     content_json = Column(Text, nullable=False)  # Tiptap/ProseMirror document, stored as a JSON string
     content_plaintext = Column(Text, nullable=False, default="")  # regenerated on every save, used for grid/list previews

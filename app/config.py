@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     master_password: str = "changeme-master"
     viewer_username: str = "viewer"
     viewer_password: str = "changeme-viewer"
+    peepee_username: str = "peepee"
+    peepee_password: str = "changeme-peepee"
     jwt_secret: str = "your-super-secret-jwt-key"
     allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     login_rate_limit: str = "5/minute"

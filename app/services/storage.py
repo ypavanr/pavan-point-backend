@@ -39,13 +39,13 @@ def delete_folder_recursive(db: Session, folder: models.Folder):
     
     db.delete(folder)
 
-async def stream_zip_files(db: Session, file_ids: List[str], folder_ids: List[str], note_ids: List[str] = None, viewer: bool = False) -> AsyncGenerator[bytes, None]:
+async def stream_zip_files(db: Session, file_ids: List[str], folder_ids: List[str], note_ids: List[str] = None, partition: str = "master", viewer: bool = False) -> AsyncGenerator[bytes, None]:
     note_ids = note_ids or []
     files_to_zip = []
     notes_to_zip = []
 
     def add_folder_to_zip_list(folder_id: str, current_path: str):
-        folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        folder = db.query(models.Folder).filter(models.Folder.id == folder_id, models.Folder.owner_role == partition).first()
         if not folder:
             return
         # A caller may legitimately request a non-private folder that itself
@@ -71,7 +71,7 @@ async def stream_zip_files(db: Session, file_ids: List[str], folder_ids: List[st
             add_folder_to_zip_list(subfolder.id, new_path)
 
     for fid in file_ids:
-        file = db.query(models.File).filter(models.File.id == fid).first()
+        file = db.query(models.File).filter(models.File.id == fid, models.File.owner_role == partition).first()
         if file:
             files_to_zip.append({
                 "disk_path": settings.storage_dir / file.stored_filename,
@@ -79,7 +79,7 @@ async def stream_zip_files(db: Session, file_ids: List[str], folder_ids: List[st
             })
 
     for nid in note_ids:
-        note = db.query(models.Note).filter(models.Note.id == nid).first()
+        note = db.query(models.Note).filter(models.Note.id == nid, models.Note.owner_role == partition).first()
         if note:
             notes_to_zip.append({
                 "content": note.content_plaintext or "",

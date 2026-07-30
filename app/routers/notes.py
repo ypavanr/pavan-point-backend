@@ -35,17 +35,19 @@ def _validate_and_serialize_content(content_json: dict) -> tuple[str, str]:
 def _get_visible_note_or_404(note_id: str, current_user: models.User, db: Session) -> models.Note:
     """Same 404-not-403 visibility rule as files: a note in a private-or-descendant
     folder can't be distinguished from one that doesn't exist."""
-    note = db.query(models.Note).filter(models.Note.id == note_id).first()
+    partition = auth.get_current_partition(current_user)
+    note = db.query(models.Note).filter(models.Note.id == note_id, models.Note.owner_role == partition).first()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     auth.check_folder_visible(note.folder_id, current_user, db)
     return note
 
 @router.post("", response_model=schemas.NoteResponse)
-def create_note(payload: schemas.NoteCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_master)):
+def create_note(payload: schemas.NoteCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_write_access)):
+    partition = auth.get_current_partition(current_user)
     folder_id = payload.folder_id if payload.folder_id and payload.folder_id != "root" else None
     if folder_id:
-        folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        folder = db.query(models.Folder).filter(models.Folder.id == folder_id, models.Folder.owner_role == partition).first()
         if not folder:
             raise HTTPException(status_code=404, detail="Target folder not found")
 
@@ -57,6 +59,7 @@ def create_note(payload: schemas.NoteCreate, db: Session = Depends(database.get_
         content_json=raw_json,
         content_plaintext=plaintext,
         created_by=current_user.id,
+        owner_role=partition,
     )
     db.add(note)
     db.commit()
@@ -69,8 +72,9 @@ def get_note(note_id: str, db: Session = Depends(database.get_db), current_user:
     return _serialize_note(note)
 
 @router.patch("/{note_id}", response_model=schemas.NoteResponse)
-def update_note(note_id: str, payload: schemas.NoteUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_master)):
-    note = db.query(models.Note).filter(models.Note.id == note_id).first()
+def update_note(note_id: str, payload: schemas.NoteUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_write_access)):
+    partition = auth.get_current_partition(current_user)
+    note = db.query(models.Note).filter(models.Note.id == note_id, models.Note.owner_role == partition).first()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
@@ -86,8 +90,9 @@ def update_note(note_id: str, payload: schemas.NoteUpdate, db: Session = Depends
     return _serialize_note(note)
 
 @router.delete("/{note_id}")
-def delete_note(note_id: str, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_master)):
-    note = db.query(models.Note).filter(models.Note.id == note_id).first()
+def delete_note(note_id: str, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_write_access)):
+    partition = auth.get_current_partition(current_user)
+    note = db.query(models.Note).filter(models.Note.id == note_id, models.Note.owner_role == partition).first()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
     db.delete(note)

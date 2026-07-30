@@ -11,13 +11,13 @@ from app.utils import is_folder_private_or_descendant_of_private
 
 router = APIRouter(prefix="/api/files", tags=["Files"])
 
-def get_unique_filename(db: Session, folder_id: str | None, filename: str, exclude_id: str | None = None) -> str:
+def get_unique_filename(db: Session, folder_id: str | None, filename: str, partition: str, exclude_id: str | None = None) -> str:
     name, ext = os.path.splitext(filename)
     counter = 1
     new_name = filename
 
     while True:
-        query = db.query(models.File).filter(models.File.original_filename == new_name)
+        query = db.query(models.File).filter(models.File.original_filename == new_name, models.File.owner_role == partition)
         if folder_id:
             query = query.filter(models.File.folder_id == folder_id)
         else:
@@ -37,18 +37,19 @@ def upload_file(
     file: UploadFile = File(...),
     folder_id: str = Form(None),
     db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.require_master)
+    current_user: models.User = Depends(auth.require_write_access)
 ):
+    partition = auth.get_current_partition(current_user)
 
     if folder_id and folder_id != "root":
-        folder = db.query(models.Folder).filter(models.Folder.id == folder_id).first()
+        folder = db.query(models.Folder).filter(models.Folder.id == folder_id, models.Folder.owner_role == partition).first()
         if not folder:
             raise HTTPException(status_code=404, detail="Target folder not found")
         actual_folder_id = folder_id
     else:
         actual_folder_id = None
 
-    unique_filename = get_unique_filename(db, actual_folder_id, file.filename)
+    unique_filename = get_unique_filename(db, actual_folder_id, file.filename, partition)
 
     import uuid
     stored_filename = str(uuid.uuid4()) + os.path.splitext(file.filename)[1]
@@ -75,7 +76,8 @@ def upload_file(
         file_type=file_type,
         mime_type=file.content_type,
         size_bytes=size_bytes,
-        thumbnail_path=thumbnail_filename if file_type != "other" else None
+        thumbnail_path=thumbnail_filename if file_type != "other" else None,
+        owner_role=partition
     )
     db.add(new_file)
     db.commit()
@@ -89,7 +91,8 @@ def upload_file(
 def _get_visible_file_or_404(file_id: str, current_user: models.User, db: Session) -> models.File:
     """Fetch a file and, for viewers, confirm its parent folder isn't private-or-descendant.
     Always 404 (never 403) so private content can't be distinguished from missing content."""
-    file = db.query(models.File).filter(models.File.id == file_id).first()
+    partition = auth.get_current_partition(current_user)
+    file = db.query(models.File).filter(models.File.id == file_id, models.File.owner_role == partition).first()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     auth.check_folder_visible(file.folder_id, current_user, db)
@@ -171,30 +174,32 @@ def preview_file(request: Request, file_id: str, db: Session = Depends(database.
     return FastAPIFileResponse(path=file_path, media_type=file.mime_type)
 
 @router.patch("/{file_id}", response_model=schemas.FileResponse)
-def rename_file(file_id: str, file_update: schemas.FileUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_master)):
-    file = db.query(models.File).filter(models.File.id == file_id).first()
+def rename_file(file_id: str, file_update: schemas.FileUpdate, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_write_access)):
+    partition = auth.get_current_partition(current_user)
+    file = db.query(models.File).filter(models.File.id == file_id, models.File.owner_role == partition).first()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
 
-    unique_name = get_unique_filename(db, file.folder_id, file_update.name, exclude_id=file.id)
+    unique_name = get_unique_filename(db, file.folder_id, file_update.name, partition, exclude_id=file.id)
     file.original_filename = unique_name
     db.commit()
     db.refresh(file)
     return {**file.__dict__, "has_thumbnail": bool(file.thumbnail_path) and (settings.thumbnails_dir / file.thumbnail_path).exists()}
 
 @router.post("/{file_id}/move", response_model=schemas.FileResponse)
-def move_file(file_id: str, payload: schemas.MoveRequest, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_master)):
-    file = db.query(models.File).filter(models.File.id == file_id).first()
+def move_file(file_id: str, payload: schemas.MoveRequest, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_write_access)):
+    partition = auth.get_current_partition(current_user)
+    file = db.query(models.File).filter(models.File.id == file_id, models.File.owner_role == partition).first()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
 
     target_id = payload.folder_id
     if target_id:
-        folder = db.query(models.Folder).filter(models.Folder.id == target_id).first()
+        folder = db.query(models.Folder).filter(models.Folder.id == target_id, models.Folder.owner_role == partition).first()
         if not folder:
             raise HTTPException(status_code=404, detail="Destination folder not found")
 
-    unique_name = get_unique_filename(db, target_id, file.original_filename, exclude_id=file.id)
+    unique_name = get_unique_filename(db, target_id, file.original_filename, partition, exclude_id=file.id)
     file.folder_id = target_id
     file.original_filename = unique_name
     db.commit()
@@ -204,12 +209,14 @@ def move_file(file_id: str, payload: schemas.MoveRequest, db: Session = Depends(
 @router.get("/storage-usage", response_model=schemas.StorageUsageResponse)
 def get_storage_usage(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
     from sqlalchemy import func
-    used = db.query(func.coalesce(func.sum(models.File.size_bytes), 0)).scalar()
+    partition = auth.get_current_partition(current_user)
+    used = db.query(func.coalesce(func.sum(models.File.size_bytes), 0)).filter(models.File.owner_role == partition).scalar()
     return schemas.StorageUsageResponse(used_bytes=int(used))
 
 @router.delete("/{file_id}")
-def delete_file(file_id: str, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_master)):
-    file = db.query(models.File).filter(models.File.id == file_id).first()
+def delete_file(file_id: str, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_write_access)):
+    partition = auth.get_current_partition(current_user)
+    file = db.query(models.File).filter(models.File.id == file_id, models.File.owner_role == partition).first()
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -225,23 +232,24 @@ def download_zip(request: schemas.DownloadZipRequest, db: Session = Depends(data
         raise HTTPException(status_code=400, detail="No items selected")
 
     file_ids, folder_ids, note_ids = request.file_ids, request.folder_ids, request.note_ids
+    partition = auth.get_current_partition(current_user)
     is_viewer = current_user.role != "master"
     if is_viewer:
         # Silently drop anything private rather than erroring the whole request.
         file_ids = [
             fid for fid in file_ids
-            if (f := db.query(models.File).filter(models.File.id == fid).first())
-            and not is_folder_private_or_descendant_of_private(db, f.folder_id)
+            if (f := db.query(models.File).filter(models.File.id == fid, models.File.owner_role == partition).first())
+            and not is_folder_private_or_descendant_of_private(db, f.folder_id, partition)
         ]
-        folder_ids = [fid for fid in folder_ids if not is_folder_private_or_descendant_of_private(db, fid)]
+        folder_ids = [fid for fid in folder_ids if not is_folder_private_or_descendant_of_private(db, fid, partition)]
         note_ids = [
             nid for nid in note_ids
-            if (n := db.query(models.Note).filter(models.Note.id == nid).first())
-            and not is_folder_private_or_descendant_of_private(db, n.folder_id)
+            if (n := db.query(models.Note).filter(models.Note.id == nid, models.Note.owner_role == partition).first())
+            and not is_folder_private_or_descendant_of_private(db, n.folder_id, partition)
         ]
 
     return StreamingResponse(
-        storage.stream_zip_files(db, file_ids, folder_ids, note_ids, viewer=is_viewer),
+        storage.stream_zip_files(db, file_ids, folder_ids, note_ids, partition, viewer=is_viewer),
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=drive_download.zip"}
     )
