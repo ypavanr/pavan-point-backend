@@ -4,7 +4,7 @@ from datetime import datetime
 
 class LoginRequest(BaseModel):
     password: str
-    role: Literal["master", "viewer"]
+    role: Literal["master", "viewer", "peepee"]
     # Only meaningful (and required) when role == "viewer": a freeform display
     # name, not tied to any account - authentication is by shared password only.
     display_name: Optional[str] = None
@@ -15,7 +15,7 @@ class LoginResponse(BaseModel):
 
 class MeResponse(BaseModel):
     username: str
-    role: Literal["master", "viewer"]
+    role: Literal["master", "viewer", "peepee"]
 
 class ViewerLoginLogEntry(BaseModel):
     username: str

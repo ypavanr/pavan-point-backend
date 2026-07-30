@@ -12,9 +12,6 @@ def get_utcnow():
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (
-        CheckConstraint("role IN ('master', 'viewer', 'peepee')", name="ck_users_role"),
-    )
     id = Column(String, primary_key=True, default=generate_uuid)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)

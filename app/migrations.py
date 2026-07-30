@@ -12,6 +12,17 @@ def run_startup_migrations(engine: Engine):
             if "role" not in user_columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR NOT NULL DEFAULT 'master'"))
 
+            # Fix existing CheckConstraint by recreating the users table without it,
+            # since SQLite doesn't support dropping constraints easily.
+            # We can check if the table creation SQL has the old constraint.
+            create_sql = conn.execute(text("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")).scalar()
+            if create_sql and "ck_users_role" in create_sql:
+                conn.execute(text("CREATE TABLE users_new (id VARCHAR NOT NULL, username VARCHAR, hashed_password VARCHAR, role VARCHAR NOT NULL DEFAULT 'master', PRIMARY KEY (id))"))
+                conn.execute(text("INSERT INTO users_new SELECT id, username, hashed_password, role FROM users"))
+                conn.execute(text("DROP TABLE users"))
+                conn.execute(text("ALTER TABLE users_new RENAME TO users"))
+                conn.execute(text("CREATE UNIQUE INDEX ix_users_username ON users (username)"))
+
         if "folders" in inspector.get_table_names():
             folder_columns = {c["name"] for c in inspector.get_columns("folders")}
             if "is_private" not in folder_columns:
