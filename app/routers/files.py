@@ -120,7 +120,16 @@ def get_thumbnail(file_id: str, db: Session = Depends(database.get_db), current_
 
     thumb_path = settings.thumbnails_dir / file.thumbnail_path
     if not thumb_path.exists():
-        raise HTTPException(status_code=404, detail="Thumbnail not found on disk")
+        # Attempt to lazily generate the thumbnail if it went missing or failed previously
+        source_path = settings.storage_dir / file.stored_filename
+        success = False
+        if file.file_type == "video" and source_path.exists():
+            success = thumbnails.generate_video_thumbnail(source_path, file.thumbnail_path)
+        elif file.file_type == "image" and source_path.exists():
+            success = thumbnails.generate_image_thumbnail(source_path, file.thumbnail_path)
+        
+        if not success or not thumb_path.exists():
+            raise HTTPException(status_code=404, detail="Thumbnail not found on disk")
 
     return FastAPIFileResponse(path=thumb_path, media_type="image/jpeg")
 
