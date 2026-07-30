@@ -133,7 +133,8 @@ def get_folder_contents(folder_id: str, db: Session = Depends(database.get_db), 
     auth.check_folder_visible(folder_id, current_user, db)
 
     breadcrumbs = get_folder_path(db, folder_id)
-    breadcrumb_dicts = [{**b.__dict__, **get_folder_stats(db, b.id)} for b in breadcrumbs]
+    # Exclude the current folder from breadcrumbs since it's included separately
+    breadcrumb_dicts = [{**b.__dict__, **get_folder_stats(db, b.id)} for b in breadcrumbs[:-1]]
 
     subfolders = db.query(models.Folder).filter(models.Folder.parent_id == folder_id).order_by(models.Folder.name).all()
     if viewer:
