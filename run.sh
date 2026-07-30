@@ -5,10 +5,10 @@ set -e
 cd "$(dirname "$0")"
 
 # Detect Python executable
-if command -v python3.11 &>/dev/null; then
-    PYTHON_CMD="python3.11"
-elif command -v python3 &>/dev/null; then
-    PYTHON_CMD="python3"
+if command -v python &>/dev/null; then
+    PYTHON_CMD="python"
+elif command -v python &>/dev/null; then
+    PYTHON_CMD="python"
 elif command -v python &>/dev/null; then
     PYTHON_CMD="python"
 else
@@ -35,5 +35,5 @@ python -c "from app.database import engine, Base; from app import models; Base.m
 
 # Run the server
 echo "Starting Uvicorn server..."
-uvicorn app.main:app --host 127.0.0.1 --port 5001 --workers 4
+uvicorn app.main:app --host 0.0.0.0 --port 5001 --workers 4
 
