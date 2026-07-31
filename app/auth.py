@@ -90,5 +90,5 @@ def check_folder_visible(folder_id: str | None, current_user: models.User, db: S
         return
     if not folder_id or folder_id == "root":
         return
-    if utils.is_folder_private_or_descendant_of_private(db, folder_id):
+    if utils.is_folder_private_or_descendant_of_private(db, folder_id, get_current_partition(current_user)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
