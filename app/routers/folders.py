@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app import database, models, schemas, auth, utils
 from app.config import settings
@@ -18,7 +18,7 @@ def _breadcrumb_path(db: Session, parent_id: str | None, partition: str) -> str:
 # NOTE: this must be registered before the "/{folder_id}" route below, otherwise
 # a request for "/api/folders/search" would be swallowed as folder_id="search".
 @router.get("/search", response_model=schemas.SearchResponse)
-def search_items(q: str, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+def search_items(q: str = Query(..., max_length=100), db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
     q = q.strip()
     if not q:
         return schemas.SearchResponse(folders=[], files=[])
