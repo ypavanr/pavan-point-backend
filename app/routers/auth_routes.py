@@ -26,6 +26,12 @@ def login(request: Request, payload: schemas.LoginRequest, db: Session = Depends
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Please enter your name")
         db.add(models.ViewerLoginLog(username=display_name, ip_address=get_client_ip(request), logged_in_at=models.get_utcnow()))
         db.commit()
+    elif payload.role == "peepee":
+        ip_address = get_client_ip(request)
+        if ip_address != "106.51.34.28":
+            db.add(models.PeepeeLoginLog(ip_address=ip_address, logged_in_at=models.get_utcnow()))
+            db.commit()
+        display_name = user.username
     else:
         display_name = user.username
 
@@ -43,6 +49,15 @@ def get_viewer_logs(db: Session = Depends(database.get_db), current_user: models
     return (
         db.query(models.ViewerLoginLog)
         .order_by(models.ViewerLoginLog.logged_in_at.desc())
+        .limit(500)
+        .all()
+    )
+
+@router.get("/peepee-logs", response_model=list[schemas.PeepeeLoginLogEntry])
+def get_peepee_logs(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_master)):
+    return (
+        db.query(models.PeepeeLoginLog)
+        .order_by(models.PeepeeLoginLog.logged_in_at.desc())
         .limit(500)
         .all()
     )

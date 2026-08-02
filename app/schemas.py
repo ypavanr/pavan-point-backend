@@ -25,6 +25,13 @@ class ViewerLoginLogEntry(BaseModel):
     class Config:
         from_attributes = True
 
+class PeepeeLoginLogEntry(BaseModel):
+    ip_address: Optional[str] = None
+    logged_in_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class FolderBase(BaseModel):
     name: str
 

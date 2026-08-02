@@ -24,6 +24,12 @@ class ViewerLoginLog(Base):
     ip_address = Column(String, nullable=True)
     logged_in_at = Column(DateTime, default=get_utcnow)
 
+class PeepeeLoginLog(Base):
+    __tablename__ = "peepee_login_logs"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    ip_address = Column(String, nullable=True)
+    logged_in_at = Column(DateTime, default=get_utcnow)
+
 class Folder(Base):
     __tablename__ = "folders"
     id = Column(String, primary_key=True, default=generate_uuid)
