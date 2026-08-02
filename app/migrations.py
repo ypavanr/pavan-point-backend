@@ -42,6 +42,8 @@ def run_startup_migrations(engine: Engine):
             file_columns = {c["name"] for c in inspector.get_columns("files")}
             if "owner_role" not in file_columns:
                 conn.execute(text("ALTER TABLE files ADD COLUMN owner_role VARCHAR NOT NULL DEFAULT 'master'"))
+            if "capture_time" not in file_columns:
+                conn.execute(text("ALTER TABLE files ADD COLUMN capture_time VARCHAR DEFAULT 'Not stored'"))
 
         if "notes" in inspector.get_table_names():
             note_columns = {c["name"] for c in inspector.get_columns("notes")}

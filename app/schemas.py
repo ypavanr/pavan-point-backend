@@ -60,6 +60,7 @@ class FileResponse(BaseModel):
     mime_type: str
     size_bytes: int
     has_thumbnail: bool
+    capture_time: Optional[str] = "Not stored"
     created_at: datetime
     updated_at: datetime
 

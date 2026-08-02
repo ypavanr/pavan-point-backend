@@ -69,6 +69,25 @@ def upload_file(
     else:
         file_type = "other"
 
+    capture_time = None
+    if file_type == "image":
+        try:
+            from PIL import Image
+            with Image.open(file_path) as img:
+                exif = img.getexif()
+                if exif:
+                    # 36867 is DateTimeOriginal, 306 is DateTime
+                    capture_time = exif.get(36867) or exif.get(306)
+        except Exception:
+            pass
+
+    if not capture_time:
+        from datetime import datetime
+        capture_time = f"Uploaded on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    elif isinstance(capture_time, str):
+        # EXIF format is typically "YYYY:MM:DD HH:MM:SS". Replace first two colons with dashes.
+        capture_time = capture_time.replace(":", "-", 2)
+
     new_file = models.File(
         original_filename=unique_filename,
         stored_filename=stored_filename,
@@ -77,6 +96,7 @@ def upload_file(
         mime_type=file.content_type,
         size_bytes=size_bytes,
         thumbnail_path=thumbnail_filename if file_type != "other" else None,
+        capture_time=capture_time,
         owner_role=partition
     )
     db.add(new_file)

@@ -52,6 +52,7 @@ class File(Base):
     mime_type = Column(String, nullable=False)
     size_bytes = Column(Integer, nullable=False)
     thumbnail_path = Column(String, nullable=True)
+    capture_time = Column(String, nullable=True, default="Not stored", server_default="Not stored")
     created_at = Column(DateTime, default=get_utcnow)
     updated_at = Column(DateTime, default=get_utcnow, onupdate=get_utcnow)
 
